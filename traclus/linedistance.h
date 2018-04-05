@@ -1,5 +1,7 @@
 /*
  * linedistance.h
+ * Implement distance metrics in paper:
+ * Trajectory Clustering: A Partition-and-Group Framework
  *
  *  Created on: Mar 25, 2018
  *      Author: me
@@ -10,26 +12,20 @@
 #include <armadillo>
 #include <algorithm>
 
+
+double twodcross(arma::vec v1, arma::vec v2);
+
 template<int Dimension=2>
 class LineDistance
 {
 public:
 	LineDistance() {}
 
-	template<typename VecTypeA, typename VecTypeB>
-	static double Evaluate(const VecTypeA& a, const VecTypeB& b)
-	{
-		// Return the L2 norm of the difference between the points, which is the
-		// same as the L2 distance.
-		return arma::norm(a - b);
-	}
-
 	template<typename PointType, typename VecTypeB>
 	static double point2line_distance(const PointType& a, const VecTypeB& b) {
 		double linelength = arma::norm(b.head(Dimension) - b.tail(Dimension));
-		return linelength == 0 ? 0 : arma::norm(arma::cross(a - b.head(Dimension),
-				b.head(Dimension) - b.tail(Dimension))) / linelength;
-
+		return linelength == 0 ? 0.0 : twodcross(a - b.head(Dimension),
+				b.head(Dimension) - b.tail(Dimension)) / linelength;
 	}
 
 	template<typename VecTypeA, typename VecTypeB>
@@ -56,12 +52,37 @@ public:
 
 	template<typename VecTypeA, typename VecTypeB>
 	static double parallel_distance(const VecTypeA& a, const VecTypeB& b) {
-		double l2square = arma.dot(b.tail(Dimension) - b.head(Dimension),
-				a.tail(Dimension) - a.head(Dimension));
-		if (l2square != 0) {
-			double l1 = arma::norm(arma::dot(a.head(Dimension) - b.head(Dimension),
-					b.tail(Dimension) - a.head(Dimension)) /
-					l2square * (b.tail(Dimension) - b.head(Dimension)));
+		VecTypeA shorter = a;
+		VecTypeB longer = b;
+		
+		double alen = arma::norm(a.tail(Dimension) - a.head(Dimension));
+		double blen = arma::norm(b.tail(Dimension) - b.head(Dimension));
+		double shortlen = alen;
+		double longlen = blen;
+		if (alen > blen) {
+			shorter = b;
+			longer = a;
+			std::swap(shortlen, longlen);
+		}
+		if (longlen != 0) {
+			double l1 = std::min(
+					std::abs(
+							arma::dot(shorter.head(Dimension) - longer.head(Dimension),
+									longer.tail(Dimension) - longer.head(Dimension))),
+					std::abs(
+							arma::dot(shorter.head(Dimension) - longer.tail(Dimension),
+									longer.tail(Dimension) - longer.head(Dimension)))) / longlen;
+
+			double l2 = std::min(
+					std::abs(
+							arma::dot(shorter.tail(Dimension) - longer.head(Dimension),
+									longer.tail(Dimension) - longer.head(Dimension))),
+					std::abs(
+							arma::dot(shorter.tail(Dimension) - longer.tail(Dimension),
+									longer.tail(Dimension) - longer.head(Dimension)))) / longlen;
+			return std::min(l1, l2);
+		} else {
+			return 0;
 		}
 	}
 
@@ -73,16 +94,22 @@ public:
 		double shorter_distance = std::min(alen, blen);
 		double longer_distance = std::max(alen, blen);
 
-		double distance = arma::dot(a.head(Dimension) - a.tail(Dimension), b.head(Dimension) - b.tail(Dimension));
+		double distance = arma::dot(a.head(Dimension) - a.tail(Dimension),
+				b.head(Dimension) - b.tail(Dimension));
 		if (distance < 0) {
 			return shorter_distance;
 		} else {
-			return longer_distance == 0 ? 0.0 : arma::norm(
-					arma::cross(
+			return longer_distance == 0 ? 0.0 : twodcross(
 							a.head(Dimension) - a.tail(Dimension),
-							b.head(Dimension) - b.tail(Dimension))) / longer_distance;
+							b.head(Dimension) - b.tail(Dimension)) / longer_distance;
 		}
 
+	}
+
+	template<typename VecTypeA, typename VecTypeB>
+	static double Evaluate(const VecTypeA& a, const VecTypeB& b)
+	{
+		return angular_distance(a, b) + parallel_distance(a, b) + vertical_distance(a, b);
 	}
 
 };
