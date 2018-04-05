@@ -34,6 +34,7 @@ arma::vec segment_clustering(const arma::mat& segments, double eps, int minlines
 			arma::mat distances;
 			indexer.Search(segment, minlines, neighbors, distances);
 			if (distances.max() <= eps) {
+				clusters(i) = clusterid;
 				for (size_t j = 0; j < neighbors.n_cols; ++j) {
 					clusters(neighbors(j)) = clusterid;
 					tobeclassified.push(neighbors(j));
