@@ -15,6 +15,43 @@
 #include <mlpack/core.hpp>
 #include <iostream>
 #include <armadillo>
+namespace {
+template<typename Neighbor, typename MatType>
+void search_eps(Neighbor& indexer, const MatType& segment, double eps, size_t minlines,
+		arma::Mat< size_t > &neighbours, arma::mat &distances) {
+	size_t numlines = minlines;
+	size_t lower_num = minlines;
+	size_t upper_num = 0;
+	double diameter = -1;
+	double diameter2 = -1;
+	do {
+		indexer.Search(segment, numlines, neighbours, distances);
+		diameter = distances.max();
+		if (diameter > eps) {
+			upper_num = numlines;
+			if (lower_num > 0) {
+				numlines = (lower_num + upper_num) / 2;
+			} else {
+				numlines /= 2;
+			}
+		} else {
+			lower_num = numlines;
+			if (upper_num > 0) {
+				numlines = (lower_num + upper_num) / 2;
+			} else {
+				numlines *= 2;
+			}
+		}
+		if (numlines < minlines || abs(upper_num - lower_num) <= 1) {
+			break;
+		}
+		diameter2 = diameter;
+	} while(true);
+	if (diameter > eps) {
+		indexer.Search(segment, lower_num, neighbours, distances);
+	}
+}
+}
 
 arma::vec segment_clustering(const arma::mat& segments, double eps, int minlines) {
 	arma::vec clusters = -arma::ones<arma::vec>(segments.n_cols);
@@ -32,8 +69,9 @@ arma::vec segment_clustering(const arma::mat& segments, double eps, int minlines
 			arma::mat segment = segments.col(i);
 			arma::Mat<size_t> neighbors;
 			arma::mat distances;
-			indexer.Search(segment, minlines, neighbors, distances);
-			if (distances.max() <= eps) {
+			//indexer.Search(segment, minlines, neighbors, distances);
+			search_eps(indexer, segment, eps, minlines, neighbors, distances);
+			if (neighbors.size() >= minlines) {
 				clusters(i) = clusterid;
 				for (size_t j = 0; j < neighbors.n_rows; ++j) {
 					clusters(neighbors(j)) = clusterid;
@@ -44,8 +82,8 @@ arma::vec segment_clustering(const arma::mat& segments, double eps, int minlines
 					tobeclassified.pop();
 					arma::Mat<size_t> kneighbors;
 					arma::mat kdistances;
-					indexer.Search(segments.col(k), minlines, kneighbors, kdistances);
-					if (kdistances.max() <= eps) {
+					search_eps(indexer, segments.col(k), eps, minlines, kneighbors, kdistances);
+					if (kneighbors.size() >= minlines) {
 						for (size_t idx = 0; idx < kneighbors.n_rows; ++idx) {
 							if (clusters(kneighbors(idx)) < 0) {
 								if (clusters(kneighbors(idx)) == -1) {

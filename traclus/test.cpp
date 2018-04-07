@@ -20,7 +20,7 @@ int main(int argc, const char *argv[]) {
 
 	if (argc > 1) {
 		mlpack::data::Load(argv[1], segments);
-		mlpack::data::Save("clusterid.csv", segment_clustering(segments, 0.01, 10));
+		mlpack::data::Save("clusterid.csv", segment_clustering(segments, 0.001, 10));
 	}
 }
 
